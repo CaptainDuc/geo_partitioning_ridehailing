@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Demo Geo-Partitioning NoSQL</title>
+    <style>
+      :root {
+        --bg: #f4efe6;
+        --card: #fff8ef;
+        --ink: #111111;
+        --accent: #ff7a00;
+        --accent-2: #1f7a8c;
+        --good: #2f8f46;
+        --bad: #c0392b;
+        --shadow: 6px 6px 0 var(--ink);
+        --border: 3px solid var(--ink);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: Arial, Helvetica, sans-serif;
+        background: linear-gradient(180deg, #fff8ef 0%, #f4efe6 100%);
+        color: var(--ink);
+      }
+
+      header {
+        padding: 28px 20px 16px;
+        border-bottom: var(--border);
+        background: #ffd9b3;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: 32px;
+        line-height: 1.1;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .subtitle {
+        margin: 0;
+        max-width: 980px;
+        font-size: 16px;
+        line-height: 1.5;
+        font-weight: 700;
+      }
+
+      main {
+        display: grid;
+        gap: 18px;
+        grid-template-columns: 1.1fr 0.9fr;
+        padding: 18px;
+        max-width: 1280px;
+        margin: 0 auto;
+      }
+
+      .panel {
+        background: var(--card);
+        border: var(--border);
+        box-shadow: var(--shadow);
+        padding: 16px;
+      }
+
+      .panel h2 {
+        margin: 0 0 12px;
+        font-size: 22px;
+        text-transform: uppercase;
+      }
+
+      .grid {
+        display: grid;
+        gap: 14px;
+      }
+
+      .form-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      label {
+        display: block;
+        font-size: 13px;
+        font-weight: 800;
+        margin-bottom: 6px;
+        text-transform: uppercase;
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        width: 100%;
+        border: 3px solid var(--ink);
+        border-radius: 0;
+        font: inherit;
+      }
+
+      input,
+      select,
+      textarea {
+        background: #fff;
+        padding: 12px 12px;
+        box-shadow: 3px 3px 0 var(--ink);
+      }
+
+      textarea {
+        min-height: 120px;
+        resize: vertical;
+      }
+
+      .full {
+        grid-column: 1 / -1;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 6px;
+      }
+
+      button {
+        background: var(--accent);
+        color: #111;
+        font-weight: 900;
+        padding: 12px 16px;
+        cursor: pointer;
+        box-shadow: 4px 4px 0 var(--ink);
+        text-transform: uppercase;
+      }
+
+      button.secondary {
+        background: #ffe28a;
+      }
+
+      button.ghost {
+        background: #d6f0f3;
+      }
+
+      button:hover {
+        transform: translate(1px, 1px);
+        box-shadow: 3px 3px 0 var(--ink);
+      }
+
+      .kpi-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .kpi {
+        background: #fff;
+        border: 3px solid var(--ink);
+        box-shadow: 4px 4px 0 var(--ink);
+        padding: 12px;
+      }
+
+      .kpi .label {
+        font-size: 12px;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-bottom: 8px;
+      }
+
+      .kpi .value {
+        font-size: 28px;
+        font-weight: 900;
+      }
+
+      .shard-card {
+        background: #fff;
+        border: 3px solid var(--ink);
+        box-shadow: 4px 4px 0 var(--ink);
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .shard-title {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        gap: 8px;
+        font-weight: 900;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+      }
+
+      .pill {
+        display: inline-block;
+        padding: 4px 8px;
+        border: 2px solid var(--ink);
+        font-size: 12px;
+        font-weight: 900;
+        background: #f6f6f6;
+      }
+
+      .small {
+        font-size: 13px;
+        line-height: 1.45;
+      }
+
+      .record-list {
+        display: grid;
+        gap: 8px;
+        margin-top: 10px;
+      }
+
+      .record {
+        border: 2px dashed var(--ink);
+        padding: 8px 10px;
+        background: #fffaf1;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+
+      pre {
+        margin: 0;
+        white-space: pre-wrap;
+        word-break: break-word;
+        background: #111;
+        color: #f2f2f2;
+        border: 3px solid #111;
+        box-shadow: 4px 4px 0 var(--ink);
+        padding: 12px;
+        min-height: 260px;
+        overflow: auto;
+      }
+
+      .tip {
+        border: 3px solid var(--ink);
+        box-shadow: 4px 4px 0 var(--ink);
+        background: #fff;
+        padding: 12px;
+        margin-bottom: 12px;
+      }
+
+      .tip ol {
+        margin: 8px 0 0 18px;
+        padding: 0;
+      }
+
+      .tip li {
+        margin: 6px 0;
+      }
+
+      .status {
+        font-weight: 900;
+        text-transform: uppercase;
+      }
+
+      .good {
+        color: var(--good);
+      }
+
+      .bad {
+        color: var(--bad);
+      }
+
+      @media (max-width: 980px) {
+        main {
+          grid-template-columns: 1fr;
+        }
+        .kpi-grid,
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+        h1 {
+          font-size: 26px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Geo-Partitioning in NoSQL</h1>
+    </header>
+
+    <main>
+      <section class="panel">
+        <h2>Trang điều khiển</h2>
+
+        <div class="kpi-grid">
+          <div class="kpi">
+            <div class="label">Quy tắc</div>
+            <div class="value">City → Shard</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Mô hình</div>
+            <div class="value">Eventually Consistent</div>
+          </div>
+          <div class="kpi">
+            <div class="label">Cơ chế</div>
+            <div class="value">Insert → Delete</div>
+          </div>
+        </div>
+
+        <div style="height: 14px"></div>
+
+        <!-- Step-by-step UI -->
+        <div class="tip">
+          <strong>Luồng thao tác (theo thiết kế proposal)</strong>
+          <ol>
+            <li>Chọn <strong>City</strong> (Paris/London).</li>
+            <li>
+              Hệ thống tự hiển thị danh sách <strong>DriverID</strong> thuộc
+              city vừa chọn.
+            </li>
+            <li>Chọn <strong>Lat/Long</strong> để tạo payload.</li>
+            <li>
+              Chạy <strong>write</strong> hoặc <strong>migrate</strong> và quan
+              sát shard.
+            </li>
+          </ol>
+        </div>
+
+        <div class="form-grid">
+          <!-- Step 1 -->
+          <div>
+            <label>Thành phố (City)</label>
+            <select id="city">
+              <option value="">-- Chọn thành phố --</option>
+              <option>Paris</option>
+              <option>London</option>
+            </select>
+          </div>
+
+          <!-- Step 2 -->
+          <div>
+            <label>DriverID (thuộc City đã chọn)</label>
+            <select id="driverIdSelect" disabled>
+              <option value="">-- Chọn DriverID --</option>
+            </select>
+          </div>
+
+          <!-- Keep compatibility with existing payload builder -->
+          <div style="display: none">
+            <input id="driverId" value="" />
+          </div>
+
+          <!-- Step 3 -->
+          <div>
+            <label>Lat</label>
+            <input id="lat" value="" placeholder="Nhập Lat" disabled />
+          </div>
+          <div>
+            <label>Long</label>
+            <input id="lng" value="" placeholder="Nhập Long" disabled />
+          </div>
+
+          <div>
+            <label>Thành phố cũ khi chuyển shard</label>
+            <select id="oldCity" disabled>
+              <option value="">Tự phát hiện</option>
+              <option>Paris</option>
+              <option>London</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Hành động</label>
+            <select id="action">
+              <option value="write">Tạo bản ghi mới</option>
+              <option value="migrate">Chuyển shard</option>
+            </select>
+          </div>
+
+          <div class="full">
+            <label>Xem trước payload</label>
+            <textarea id="payload" readonly></textarea>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button onclick="refreshPayload()">Làm mới payload</button>
+          <button class="secondary" onclick="sendRequest()" id="sendBtn">
+            Thực hiện
+          </button>
+          <button class="ghost" onclick="loadOverview()">
+            Tải lại tình trạng shard
+          </button>
+        </div>
+
+        <div style="height: 14px"></div>
+        <h2>Phản hồi</h2>
+        <pre id="response">Chưa có request nào được gửi.</pre>
+      </section>
+
+      <aside class="panel">
+        <h2>Shards & Driver (đang chạy / tắt node)</h2>
+        <div id="overview" class="grid"></div>
+        <div class="tip" style="margin-top: 12px">
+          <strong>Ý nghĩa demo:</strong>
+          <ol>
+            <li>Khi shard đang chạy: hiển thị driver trong shard đó.</li>
+            <li>
+              Khi bạn tắt shard: gateway sẽ coi shard đó “down” và (UI) sẽ xoá
+              card/driver của shard đó.
+            </li>
+            <li>
+              Khi bật lại: reload sẽ hiển thị dữ liệu driver theo shard đang
+              sống.
+            </li>
+          </ol>
+        </div>
+      </aside>
+    </main>
+
+    <script>
+      function buildPayload() {
+        const payload = {
+          DriverID: document.getElementById("driverId").value.trim(),
+          City: document.getElementById("city").value,
+          Lat: document.getElementById("lat").value.trim(),
+          Long: document.getElementById("lng").value.trim(),
+        };
+
+        const oldCity = document.getElementById("oldCity").value;
+        if (oldCity) payload.OldCity = oldCity;
+        return payload;
+      }
+
+      function refreshPayload() {
+        document.getElementById("payload").value = JSON.stringify(
+          buildPayload(),
+          null,
+          2
+        );
+      }
+
+      function setDisabledByStep(step) {
+        // step: 1=choose city, 2=choose driver, 3=enter lat/lng
+        const driverSelect = document.getElementById("driverIdSelect");
+        const latInput = document.getElementById("lat");
+        const lngInput = document.getElementById("lng");
+
+        if (step <= 1) {
+          driverSelect.disabled = true;
+          latInput.disabled = true;
+          lngInput.disabled = true;
+        } else if (step === 2) {
+          driverSelect.disabled = false;
+          latInput.disabled = true;
+          lngInput.disabled = true;
+        } else {
+          driverSelect.disabled = false;
+          latInput.disabled = false;
+          lngInput.disabled = false;
+        }
+
+        refreshPayload();
+      }
+
+      function syncHiddenDriverId() {
+        // keep existing payload builder working (it reads #driverId hidden input)
+        const driverSelect = document.getElementById("driverIdSelect");
+        const hidden = document.getElementById("driverId");
+        if (hidden) hidden.value = driverSelect.value;
+      }
+
+      async function refreshDriverOptionsByCity(city) {
+        const driverSelect = document.getElementById("driverIdSelect");
+        const oldCitySelect = document.getElementById("oldCity");
+
+        driverSelect.innerHTML = `<option value="">-- Chọn DriverID --</option>`;
+        driverSelect.value = "";
+
+        // update oldCity enabled only when user is about to migrate
+        // (we keep it disabled here and user can still choose action = migrate)
+
+        const res = await fetch("/api/overview");
+        const data = await res.json();
+
+        // From overview, find shard with matching city and collect driver ids
+        const drivers = [];
+        (data.shards || []).forEach((shard) => {
+          if (shard.city === city) {
+            (shard.drivers || []).forEach((d) => {
+              if (d && d.DriverID != null) drivers.push(d.DriverID);
+            });
+          }
+        });
+
+        // unique + sort for stable UI
+        const unique = Array.from(
+          new Set(drivers.map((x) => String(x)))
+        ).sort();
+        unique.forEach((id) => {
+          const opt = document.createElement("option");
+          opt.value = id;
+          opt.textContent = id;
+          driverSelect.appendChild(opt);
+        });
+
+        syncHiddenDriverId();
+
+        if (unique.length === 0) {
+          // no driver in this city yet
+          driverSelect.disabled = false;
+        }
+
+        setDisabledByStep(2);
+
+        // when city changes, reset oldCity to default empty
+        if (oldCitySelect) oldCitySelect.value = "";
+      }
+
+      document.addEventListener("DOMContentLoaded", () => {
+        const citySelect = document.getElementById("city");
+        const driverSelect = document.getElementById("driverIdSelect");
+        const latInput = document.getElementById("lat");
+        const lngInput = document.getElementById("lng");
+
+        // init step 1
+        setDisabledByStep(1);
+
+        citySelect.addEventListener("change", async () => {
+          const city = citySelect.value;
+          const latEnabled = Boolean(city);
+
+          if (!city) {
+            driverSelect.innerHTML = `<option value="">-- Chọn DriverID --</option>`;
+            driverSelect.value = "";
+            latInput.value = "";
+            lngInput.value = "";
+            setDisabledByStep(1);
+            return;
+          }
+
+          await refreshDriverOptionsByCity(city);
+        });
+
+        driverSelect.addEventListener("change", () => {
+          syncHiddenDriverId();
+          setDisabledByStep(2);
+        });
+
+        // once user starts entering lat/lng, move to step 3
+        [latInput, lngInput].forEach((el) => {
+          el.addEventListener("input", () => {
+            const city = citySelect.value;
+            if (!city) return;
+            if (latInput.value.trim() !== "" || lngInput.value.trim() !== "") {
+              setDisabledByStep(3);
+            }
+          });
+        });
+
+        // default: if user changes action to migrate, ensure oldCity is enabled and suggested
+        const actionSelect = document.getElementById("action");
+        const oldCitySelect = document.getElementById("oldCity");
+        actionSelect.addEventListener("change", () => {
+          if (actionSelect.value === "migrate") {
+            if (oldCitySelect) oldCitySelect.disabled = false;
+          } else {
+            if (oldCitySelect) oldCitySelect.disabled = true;
+            if (oldCitySelect) oldCitySelect.value = "";
+          }
+          refreshPayload();
+        });
+
+        // initial action state
+        const actionSelectVal = actionSelect.value;
+        if (actionSelectVal === "migrate" && oldCitySelect)
+          oldCitySelect.disabled = false;
+      });
+
+      function renderOverview(data) {
+        const container = document.getElementById("overview");
+        container.innerHTML = "";
+
+        data.shards.forEach((shard) => {
+          const card = document.createElement("div");
+          card.className = "shard-card";
+          card.innerHTML = `
+            <div class="shard-title">
+              <span>${shard.label}</span>
+              <span class="pill">${shard.city}</span>
+            </div>
+            <div class="small"><strong>Endpoint:</strong> ${shard.url}</div>
+            <div class="small"><strong>Số bản ghi:</strong> ${shard.count}</div>
+            <div class="record-list">
+              ${
+                (shard.drivers || [])
+                  .map(
+                    (driver) => `
+                <div class="record">
+                  <strong>${driver.DriverID || "Unknown"}</strong><br />
+                  City: ${driver.City || "-"}<br />
+                  Lat: ${driver.Lat || "-"} | Long: ${driver.Long || "-"}
+                </div>
+              `
+                  )
+                  .join("") || "<div class='small'>Chưa có dữ liệu</div>"
+              }
+            </div>
+          `;
+          container.appendChild(card);
+        });
+      }
+
+      async function loadOverview() {
+        const res = await fetch("/api/overview");
+        const data = await res.json();
+        renderOverview(data);
+      }
+
+      function summarizeResponse(parsed) {
+        if (!parsed || typeof parsed !== "object") return parsed;
+        const out = {};
+        if (parsed.status) out.status = parsed.status;
+        if (parsed.operation) out.operation = parsed.operation;
+        if (parsed.mode) out.mode = parsed.mode;
+        if (parsed.routed_to) out.routed_to = parsed.routed_to;
+        if (parsed.from) out.from = parsed.from;
+        if (parsed.to) out.to = parsed.to;
+        if (parsed.city) out.city = parsed.city;
+        if (parsed.driver_id) out.driver_id = parsed.driver_id;
+        if (parsed.delete_status) out.delete_status = parsed.delete_status;
+        if (parsed.error) out.error = parsed.error;
+        if (parsed.insert_result) out.insert_result = parsed.insert_result;
+        if (parsed.previous_record)
+          out.previous_record = parsed.previous_record;
+        return out;
+      }
+
+      async function sendRequest() {
+        refreshPayload();
+        const action = document.getElementById("action").value;
+        const payload = buildPayload();
+
+        const endpoint = action === "migrate" ? "/migrate" : "/write";
+        const responseBox = document.getElementById("response");
+
+        responseBox.textContent = "Đang xử lý...";
+
+        try {
+          const res = await fetch(endpoint, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
+          });
+
+          const text = await res.text();
+          let parsed;
+          try {
+            parsed = JSON.parse(text);
+          } catch (_) {
+            parsed = text;
+          }
+
+          const summary = summarizeResponse(parsed);
+          responseBox.textContent = JSON.stringify(
+            {
+              http_status: res.status,
+              ok: res.ok,
+              summary,
+              raw: parsed,
+            },
+            null,
+            2
+          );
+
+          await loadOverview();
+        } catch (error) {
+          responseBox.textContent = JSON.stringify(
+            { status: "failed", error: String(error) },
+            null,
+            2
+          );
+        }
+      }
+
+      refreshPayload();
+      loadOverview();
+    </script>
+  </body>
+</html>
