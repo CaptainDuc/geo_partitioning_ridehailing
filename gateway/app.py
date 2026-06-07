@@ -129,16 +129,12 @@ def api_driver_lookup(driver_id: str):
 
 @app.route("/write", methods=["POST"])
 def write():
-    print("\n" + "="*40)
-    print(">>> RECEIVE /WRITE REQUEST")
-    
     data = request.get_json(silent=True) or {}
     driver_id = data.get("DriverID")
     city = data.get("City")
     pos_x = data.get("PosX")
     pos_y = data.get("PosY")
     
-    print(f">>> Driver: {driver_id}, City: {city}, Position: ({pos_x}, {pos_y})")
 
     if not driver_id or not city:
         print("!!! FAILED: Missing DriverID or City")
@@ -165,44 +161,32 @@ def write():
     current_shard = current[0] if current else None
     current_record = current[1] if current else None
 
-    # Same shard => just insert/update at target.
+    # Same shard => just insert/update at target + Periodic Cleanup
     if current_shard == target_shard:
         try:
-            print(f">>> Routing to SAME SHARD: {target_shard}")
             response = post_driver(target_shard, data)
-        except requests.exceptions.RequestException as exc:
-            print(f"!!! Error calling shard: {exc}")
-            return jsonify(
-                {
-                    "status": "failed",
-                    "stage": "write",
-                    "error": "Shard unreachable",
-                    "message": str(exc),
-                }
-            ), 503
+            
+            # Thực hiện dọn dẹp ở các Shard khác để xóa "Dữ liệu mồ côi" 
+            # (Hành động này giúp hệ thống tự phục hồi nếu trước đó có Shard bị sập)
+            for s_key in SHARDS:
+                if s_key != target_shard:
+                    try:
+                        delete_driver(s_key, driver_id)
+                    except:
+                        pass # Bỏ qua nếu Shard đó vẫn đang sập
 
-        if response.status_code not in (200, 201):
-            return jsonify(
-                {
-                    "status": "failed",
-                    "stage": "write",
-                    "error": "Shard rejected request",
-                    "http_status": response.status_code,
-                    "response": response.text,
-                }
-            ), 500
-
-        meta = SHARDS[target_shard]
-        return jsonify(
-            {
+            return jsonify({
                 "status": "success",
-                "operation": "revalidate_same_shard",
-                "routed_to": meta["label"],
-                "city": meta["city"],
-                "result": response.json(),
-                "previous_record": current_record,
-            }
-        )
+                "operation": "same_shard_update_with_cleanup",
+                "routed_to": SHARDS[target_shard]["label"],
+                "result": response.json() if response.text else {}
+            })
+        except requests.exceptions.RequestException as exc:
+            return jsonify({
+                "status": "failed",
+                "error": "Shard unreachable",
+                "message": str(exc)
+            }), 503
 
     # Cross-shard migration: revalidate to target shard.
     # Steps: insert into target first, then delete from old shard.
@@ -246,58 +230,47 @@ def write():
     old_shard = current_shard
     new_shard = target_shard
 
+    # Bước 1: Ghi vào shard mới
     try:
         insert_response = post_driver(new_shard, data)
     except requests.exceptions.RequestException as exc:
-        return jsonify(
-            {
-                "status": "failed",
-                "stage": "insert",
-                "error": "new shard unavailable",
-                "failed_node": SHARDS[new_shard]["label"],
-                "message": str(exc),
-            }
-        ), 503
+        return jsonify({
+            "status": "failed",
+            "stage": "insert",
+            "error": "new shard unavailable",
+            "message": str(exc)
+        }), 503
 
     if insert_response.status_code not in (200, 201):
-        return jsonify(
-            {
-                "status": "failed",
-                "stage": "insert",
-                "error": "insert rejected by shard",
-                "failed_node": SHARDS[new_shard]["label"],
-                "http_status": insert_response.status_code,
-                "response": insert_response.text,
-            }
-        ), 500
+        return jsonify({
+            "status": "failed",
+            "stage": "insert",
+            "error": "insert rejected",
+            "http_status": insert_response.status_code
+        }), 500
 
-    delete_status = "skipped"
-    delete_error = None
+    # Bước 2: Dọn dẹp (Global Cleanup)
+    # Thay vì chỉ xóa ở old_shard, ta sẽ quét TẤT CẢ các shard không phải new_shard
+    # Điều này giúp xóa bỏ "Dữ liệu mồ côi" nếu trước đó có Shard nào bị sập mà chưa xóa kịp.
+    cleanup_reports = []
+    for s_key in SHARDS:
+        if s_key == new_shard:
+            continue
+        
+        try:
+            del_res = delete_driver(s_key, driver_id)
+            status = "deleted" if del_res.status_code in (200, 204) else f"error_{del_res.status_code}"
+            cleanup_reports.append({"shard": s_key, "status": status})
+        except requests.exceptions.RequestException:
+            cleanup_reports.append({"shard": s_key, "status": "still_offline"})
 
-    try:
-        delete_response = delete_driver(old_shard, driver_id)
-        if delete_response.status_code in (200, 204):
-            delete_status = "deleted"
-        else:
-            delete_status = "failed"
-            delete_error = delete_response.text
-    except requests.exceptions.RequestException as exc:
-        delete_status = "failed"
-        delete_error = str(exc)
-
-    return jsonify(
-        {
-            "status": "migrated",
-            "operation": "revalidate_cross_shard_move",
-            "mode": "cross_shard_move",
-            "from": SHARDS[old_shard]["label"],
-            "to": SHARDS[new_shard]["label"],
-            "delete_status": delete_status,
-            "delete_error": delete_error,
-            "insert_result": insert_response.json() if insert_response.text else {},
-            "previous_record": current_record,
-        }
-    )
+    return jsonify({
+        "status": "migrated",
+        "operation": "global_cleanup_migration",
+        "to": SHARDS[new_shard]["label"],
+        "cleanup_details": cleanup_reports,
+        "insert_result": insert_response.json() if insert_response.text else {}
+    })
 
 
 
@@ -440,4 +413,5 @@ def migrate():
 
 
 if __name__ == "__main__":
-    app.run(port=5000, debug=True)
+    print("Running on http://localhost:5000/game")
+    app.run(port=5000, debug=False)

@@ -213,7 +213,7 @@
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Mã Tài Xế</div>
-                    <div class="stat-value">GAME-DRIVER-1</div>
+                    <div class="stat-value">DRIVER01</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">Trạng Thái</div>
@@ -235,23 +235,21 @@
                     <div class="log-entry">Hệ thống đã sẵn sàng. Vui lòng bấm Bắt đầu.</div>
                 </div>
             </div>
-
-            <div style="font-size: 0.7rem; color: var(--text-muted); line-height: 1.5; background: rgba(0,0,0,0.2); padding: 1rem; border-radius: 8px;">
-                <p><b>💡 Cách Demo Đề Tài:</b></p>
-                <p>1. Di chuyển xe sang vùng Shard khác.</p>
-                <p>2. Hệ thống thực hiện: Thêm (New Shard) -> Xóa (Old Shard).</p>
-                <p>3. Thử tắt Shard để xem cơ chế Xử lý lỗi (503/500).</p>
-            </div>
         </aside>
     </div>
 
     <script>
-        const DRIVER_ID = "GAME-DRIVER-1";
-        const REVALIDATE_INTERVAL = 5000;
+        const REVALIDATE_INTERVAL = 4000;
 
         class Game {
             constructor() {
-                this.player = { x: 20, y: 50, speed: 1.8 };
+                // Khởi tạo 2 tài xế
+                this.drivers = [
+                    { id: "DRIVER01", x: 20, y: 40, color: '#00B14F', city: 'Paris', shard: 'EU-West' },
+                    { id: "DRIVER02", x: 25, y: 60, color: '#EF4444', city: 'Paris', shard: 'EU-West' }
+                ];
+                this.activeIndex = 0; // Tài xế đang được điều khiển
+                
                 this.isRunning = false;
                 this.timer = null;
                 this.isDragging = false;
@@ -261,64 +259,114 @@
 
             init() {
                 this.viewport = document.querySelector('.game-viewport');
-                this.playerEl = document.getElementById('player');
                 this.btnToggle = document.getElementById('btn-toggle');
+                this.failureOverlay = document.getElementById('failure-overlay');
                 
+                // Tạo các phần tử xe trên map
+                this.drivers.forEach((d, index) => {
+                    const el = document.createElement('div');
+                    el.id = `player-${index}`;
+                    el.className = 'driver-car';
+                    el.style.position = 'absolute';
+                    el.style.width = '48px';
+                    el.style.height = '48px';
+                    el.style.borderRadius = '50%';
+                    el.style.display = 'flex';
+                    el.style.alignItems = 'center';
+                    el.style.justifyContent = 'center';
+                    el.style.zIndex = '100';
+                    el.style.cursor = 'grab';
+                    el.style.background = d.color;
+                    el.style.boxShadow = `0 0 20px ${d.color}66`;
+                    el.innerHTML = `<span style="font-size: 24px">🚗</span><div style="position:absolute; bottom:-20px; font-size:10px; font-weight:800; background:rgba(0,0,0,0.5); padding:2px 6px; border-radius:4px; white-space:nowrap">${d.id}</div>`;
+                    
+                    el.addEventListener('mousedown', (e) => {
+                        this.activeIndex = index;
+                        this.isDragging = true;
+                        this.updateUI();
+                        e.stopPropagation();
+                    });
+
+                    this.viewport.appendChild(el);
+                    d.el = el;
+                });
+
                 // Điều khiển phím
-                window.addEventListener('keydown', e => this.keys[e.key.toLowerCase()] = true);
+                window.addEventListener('keydown', e => {
+                    this.keys[e.key.toLowerCase()] = true;
+                    // Phím 1, 2 để đổi tài xế
+                    if (e.key === '1') { this.activeIndex = 0; this.updateUI(); this.log("Đã chọn DRIVER01", "success"); }
+                    if (e.key === '2') { this.activeIndex = 1; this.updateUI(); this.log("Đã chọn DRIVER02", "success"); }
+                });
                 window.addEventListener('keyup', e => this.keys[e.key.toLowerCase()] = false);
                 
-                // Điều khiển chuột
-                this.playerEl.addEventListener('mousedown', () => { this.isDragging = true; });
+                // Kéo thả toàn cục
                 window.addEventListener('mouseup', () => { this.isDragging = false; });
                 window.addEventListener('mousemove', e => {
                     if (!this.isDragging) return;
                     const r = this.viewport.getBoundingClientRect();
-                    this.player.x = ((e.clientX - r.left) / r.width) * 100;
-                    this.player.y = ((e.clientY - r.top) / r.height) * 100;
+                    const d = this.drivers[this.activeIndex];
+                    d.x = ((e.clientX - r.left) / r.width) * 100;
+                    d.y = ((e.clientY - r.top) / r.height) * 100;
                 });
 
                 this.btnToggle.addEventListener('click', () => this.toggleRevalidate());
                 document.getElementById('btn-reset').addEventListener('click', () => { 
-                    this.player.x = 20; this.player.y = 50; 
-                    this.log("Đã đặt lại vị trí về Paris", "warning");
+                    this.drivers[0].x = 20; this.drivers[0].y = 40;
+                    this.drivers[1].x = 25; this.drivers[1].y = 60;
+                    this.log("Đã đặt lại vị trí đội xe", "warning");
                 });
 
+                this.updateUI();
                 this.gameLoop();
             }
 
             getCity(x) { return x < 50 ? "Paris" : "London"; }
-            getLatLng(x, y) {
-                const base = x < 50 ? { lat: 48.8566, lng: 2.3522 } : { lat: 51.5074, lng: -0.1278 };
-                return { 
-                    lat: base.lat + (y - 50) * 0.005, 
-                    lng: base.lng + (x - 50) * 0.005 
-                };
+
+            updateUI() {
+                const d = this.drivers[this.activeIndex];
+                document.getElementById('current-city').textContent = d.city;
+                document.getElementById('shard-target').textContent = d.shard;
+                document.getElementById('display-driver-id').textContent = d.id;
+                
+                // Highlight xe đang chọn
+                this.drivers.forEach((drv, idx) => {
+                    drv.el.style.border = (idx === this.activeIndex) ? "3px solid white" : "none";
+                    drv.el.style.transform = (idx === this.activeIndex) ? "translate(-50%, -50%) scale(1.1)" : "translate(-50%, -50%) scale(1)";
+                    drv.el.style.zIndex = (idx === this.activeIndex) ? "200" : "100";
+                });
             }
 
             gameLoop() {
+                // Di chuyển xe đang active
+                const d = this.drivers[this.activeIndex];
+                const speed = 1.8;
                 if (!this.isDragging) {
-                    if (this.keys['w'] || this.keys['arrowup']) this.player.y -= this.player.speed;
-                    if (this.keys['s'] || this.keys['arrowdown']) this.player.y += this.player.speed;
-                    if (this.keys['a'] || this.keys['arrowleft']) this.player.x -= this.player.speed;
-                    if (this.keys['d'] || this.keys['arrowright']) this.player.x += this.player.speed;
+                    if (this.keys['w'] || this.keys['arrowup']) d.y -= speed;
+                    if (this.keys['s'] || this.keys['arrowdown']) d.y += speed;
+                    if (this.keys['a'] || this.keys['arrowleft']) d.x -= speed;
+                    if (this.keys['d'] || this.keys['arrowright']) d.x += speed;
                 }
-                
-                this.player.x = Math.max(0, Math.min(100, this.player.x));
-                this.player.y = Math.max(0, Math.min(100, this.player.y));
-                
-                this.playerEl.style.left = `${this.player.x}%`;
-                this.playerEl.style.top = `${this.player.y}%`;
-                
-                const city = this.getCity(this.player.x);
-                const shard = city === "Paris" ? "EU-West" : "EU-North";
-                
-                document.getElementById('current-city').textContent = city;
-                document.getElementById('shard-target').textContent = shard;
-                
+
+                // Cập nhật vị trí và hiển thị cho TẤT CẢ các xe
+                this.drivers.forEach(drv => {
+                    drv.x = Math.max(2, Math.min(98, drv.x));
+                    drv.y = Math.max(2, Math.min(98, drv.y));
+                    drv.el.style.left = `${drv.x}%`;
+                    drv.el.style.top = `${drv.y}%`;
+                    
+                    drv.city = this.getCity(drv.x);
+                    drv.shard = drv.city === "Paris" ? "EU-West" : "EU-North";
+                });
+
+                // Update Active City UI
+                const activeCity = this.drivers[this.activeIndex].city;
+                document.getElementById('current-city').textContent = activeCity;
+                document.getElementById('shard-target').textContent = this.drivers[this.activeIndex].shard;
+
                 document.querySelectorAll('.region').forEach(r => {
                     const isParisRegion = r.classList.contains('paris');
-                    r.classList.toggle('active', (isParisRegion && city === 'Paris') || (!isParisRegion && city === 'London'));
+                    r.classList.toggle('active', (isParisRegion && activeCity === 'Paris') || (!isParisRegion && activeCity === 'London'));
                 });
 
                 requestAnimationFrame(() => this.gameLoop());
@@ -330,21 +378,30 @@
                 this.btnToggle.style.background = this.isRunning ? 'var(--danger)' : 'var(--primary)';
                 
                 if (this.isRunning) {
-                    this.log("Hệ thống hoạt động. Đang gửi tọa độ...", "success");
-                    this.timer = setInterval(() => this.revalidate(), REVALIDATE_INTERVAL);
-                    this.revalidate();
+                    this.log("Hệ thống đội xe hoạt động. Đang đồng bộ...", "success");
+                    this.timer = setInterval(() => this.revalidateAll(), REVALIDATE_INTERVAL);
+                    this.revalidateAll();
                 } else {
                     clearInterval(this.timer);
-                    this.log("Đã tạm dừng đồng bộ.", "warning");
+                    this.log("Đã dừng đồng bộ đội xe.", "warning");
                     document.getElementById('op-status').textContent = "Đã dừng";
                 }
             }
 
-            async revalidate() {
-                const x = Math.round(this.player.x);
-                const y = Math.round(this.player.y);
-                const city = this.getCity(this.player.x);
-                const payload = { DriverID: DRIVER_ID, City: city, PosX: x, PosY: y };
+            // Đồng bộ TẤT CẢ lái xe lên Gateway
+            async revalidateAll() {
+                for (const d of this.drivers) {
+                    await this.syncDriver(d);
+                }
+            }
+
+            async syncDriver(d) {
+                const payload = { 
+                    DriverID: d.id, 
+                    City: d.city, 
+                    Lat: Math.round(d.y), 
+                    Long: Math.round(d.x) 
+                };
 
                 try {
                     const res = await fetch('/write', {
@@ -352,27 +409,18 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(payload)
                     });
-
                     const data = await res.json();
                     
-                    if (!res.ok) {
-                        this.log(`LỖI HỆ THỐNG: ${data.error || 'Không xác định'}`, "error");
-                        document.getElementById('op-status').textContent = "Lỗi " + res.status;
-                        return;
-                    }
-
-                    const statusMsg = data.status === 'migrated' ? 'Đã di chuyển Shard' : 'Đã cập nhật';
-                    document.getElementById('op-status').textContent = statusMsg;
-                    document.getElementById('op-status').style.color = data.status === 'migrated' ? 'var(--warning)' : 'var(--success)';
-
                     if (data.status === 'migrated') {
-                        this.log(`DI CHUYỂN: ${data.from} ➔ ${data.to}`, "warning");
-                    } else {
-                        this.log(`Đồng bộ thành công tới ${city}`);
+                        this.log(`DI TRÚ: ${d.id} ➔ ${data.to}`, "warning");
+                    }
+                    
+                    if (d.id === this.drivers[this.activeIndex].id) {
+                        document.getElementById('op-status').textContent = data.status === 'migrated' ? 'Vừa di trú' : 'Đã cập nhật';
+                        document.getElementById('op-status').style.color = data.status === 'migrated' ? 'var(--warning)' : 'var(--success)';
                     }
                 } catch (e) {
-                    this.log("LỖI KẾT NỐI: Không thể gọi API Gateway", "error");
-                    document.getElementById('op-status').textContent = "Mất kết nối";
+                    this.log(`LỖI: Mất kết nối khi đồng bộ ${d.id}`, "error");
                 }
             }
 
@@ -387,7 +435,13 @@
             }
         }
 
-        window.onload = () => { new Game(); };
+        window.onload = () => { 
+            // Khớp nhãn UI cho thông tin tài xế
+            const driverInfoCard = document.querySelectorAll('.stat-card')[2];
+            driverInfoCard.innerHTML = `<div class="stat-label">Mã Tài Xế Đang Chọn</div><div class="stat-value" id="display-driver-id">DRIVER01</div>`;
+            
+            new Game(); 
+        };
     </script>
 </body>
 </html>
