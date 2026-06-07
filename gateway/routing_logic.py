@@ -115,16 +115,6 @@ def route_write(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def route_migrate(driver_id: str, old_city: Optional[str], new_city: str, payload: Dict[str, Any]) -> Dict[str, Any]:
-    """Cross-shard migration for a driver record.
-
-    Algorithm (matching gateway/app.py idea):
-    1) Determine new_shard from new_city.
-    2) Determine old_shard either from old_city (if provided) or by scanning.
-    3) If same shard: update in place.
-    4) If cross-shard:
-       - insert into new shard
-       - delete from old shard
-    """
 
     if not driver_id or not new_city:
         raise ValueError("driver_id and new_city are required")

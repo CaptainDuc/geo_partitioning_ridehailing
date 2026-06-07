@@ -230,7 +230,6 @@ def write():
     old_shard = current_shard
     new_shard = target_shard
 
-    # Bước 1: Ghi vào shard mới
     try:
         insert_response = post_driver(new_shard, data)
     except requests.exceptions.RequestException as exc:
@@ -249,9 +248,6 @@ def write():
             "http_status": insert_response.status_code
         }), 500
 
-    # Bước 2: Dọn dẹp (Global Cleanup)
-    # Thay vì chỉ xóa ở old_shard, ta sẽ quét TẤT CẢ các shard không phải new_shard
-    # Điều này giúp xóa bỏ "Dữ liệu mồ côi" nếu trước đó có Shard nào bị sập mà chưa xóa kịp.
     cleanup_reports = []
     for s_key in SHARDS:
         if s_key == new_shard:
