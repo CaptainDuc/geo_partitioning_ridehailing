@@ -166,8 +166,6 @@ def write():
         try:
             response = post_driver(target_shard, data)
             
-            # Thực hiện dọn dẹp ở các Shard khác để xóa "Dữ liệu mồ côi" 
-            # (Hành động này giúp hệ thống tự phục hồi nếu trước đó có Shard bị sập)
             for s_key in SHARDS:
                 if s_key != target_shard:
                     try:

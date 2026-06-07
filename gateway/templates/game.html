@@ -396,6 +396,7 @@
             }
 
             async syncDriver(d) {
+                const shardName = d.city === 'Paris' ? 'EU-West' : 'EU-North';
                 const payload = { 
                     DriverID: d.id, 
                     City: d.city, 
@@ -410,6 +411,11 @@
                         body: JSON.stringify(payload)
                     });
                     const data = await res.json();
+
+                    if (!res.ok) {
+                        this.log(`⛔ ${d.id}: Không có kết nối đến Shard ${shardName} (${d.city})`, "error");
+                        return;
+                    }
                     
                     if (data.status === 'migrated') {
                         this.log(`DI TRÚ: ${d.id} ➔ ${data.to}`, "warning");
@@ -420,7 +426,7 @@
                         document.getElementById('op-status').style.color = data.status === 'migrated' ? 'var(--warning)' : 'var(--success)';
                     }
                 } catch (e) {
-                    this.log(`LỖI: Mất kết nối khi đồng bộ ${d.id}`, "error");
+                    this.log(`⛔ Không có kết nối đến hệ thống`, "error");
                 }
             }
 
