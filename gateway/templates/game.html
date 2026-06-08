@@ -222,6 +222,11 @@
             </div>
 
             <div class="btn-group">
+                <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+                    <input type="text" id="new-driver-id" placeholder="Nhập ID tài xế mới..." 
+                           style="flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: #000; color: #fff; font-size: 0.8rem;">
+                    <button class="btn btn-primary" id="btn-add-driver" style="padding: 10px 15px;">➕ Thêm</button>
+                </div>
                 <button class="btn btn-primary" id="btn-toggle">🚀 BẮT ĐẦU ĐỒNG BỘ</button>
                 <button class="btn btn-outline" id="btn-reset">Đặt lại vị trí</button>
             </div>
@@ -262,33 +267,36 @@
                 this.btnToggle = document.getElementById('btn-toggle');
                 this.failureOverlay = document.getElementById('failure-overlay');
                 
-                // Tạo các phần tử xe trên map
+                // Tạo các phần tử xe cho các tài xế ban đầu
                 this.drivers.forEach((d, index) => {
-                    const el = document.createElement('div');
-                    el.id = `player-${index}`;
-                    el.className = 'driver-car';
-                    el.style.position = 'absolute';
-                    el.style.width = '48px';
-                    el.style.height = '48px';
-                    el.style.borderRadius = '50%';
-                    el.style.display = 'flex';
-                    el.style.alignItems = 'center';
-                    el.style.justifyContent = 'center';
-                    el.style.zIndex = '100';
-                    el.style.cursor = 'grab';
-                    el.style.background = d.color;
-                    el.style.boxShadow = `0 0 20px ${d.color}66`;
-                    el.innerHTML = `<span style="font-size: 24px">🚗</span><div style="position:absolute; bottom:-20px; font-size:10px; font-weight:800; background:rgba(0,0,0,0.5); padding:2px 6px; border-radius:4px; white-space:nowrap">${d.id}</div>`;
-                    
-                    el.addEventListener('mousedown', (e) => {
-                        this.activeIndex = index;
-                        this.isDragging = true;
-                        this.updateUI();
-                        e.stopPropagation();
-                    });
+                    this.createDriverElement(d, index);
+                });
 
-                    this.viewport.appendChild(el);
-                    d.el = el;
+                // Xử lý nút Thêm tài xế
+                document.getElementById('btn-add-driver').addEventListener('click', () => {
+                    const input = document.getElementById('new-driver-id');
+                    const id = input.value.trim();
+                    if (!id) return;
+                    
+                    // Kiểm tra trùng ID
+                    if (this.drivers.find(d => d.id === id)) {
+                        this.log(`ID ${id} đã tồn tại!`, "error");
+                        return;
+                    }
+
+                    const newDriver = {
+                        id: id,
+                        x: 10 + Math.random() * 30, // Random vị trí ban đầu trong Paris
+                        y: 10 + Math.random() * 80,
+                        color: '#' + Math.floor(Math.random()*16777215).toString(16), // Màu ngẫu nhiên
+                        city: 'Paris',
+                        shard: 'EU-West'
+                    };
+
+                    this.drivers.push(newDriver);
+                    this.createDriverElement(newDriver, this.drivers.length - 1);
+                    this.log(`Đã thêm tài xế mới: ${id}`, "success");
+                    input.value = "";
                 });
 
                 // Điều khiển phím
@@ -306,8 +314,13 @@
                     if (!this.isDragging) return;
                     const r = this.viewport.getBoundingClientRect();
                     const d = this.drivers[this.activeIndex];
-                    d.x = ((e.clientX - r.left) / r.width) * 100;
-                    d.y = ((e.clientY - r.top) / r.height) * 100;
+                    
+                    // Tính toán vị trí % dựa trên mouse
+                    const newX = ((e.clientX - r.left) / r.width) * 100;
+                    const newY = ((e.clientY - r.top) / r.height) * 100;
+                    
+                    d.x = newX;
+                    d.y = newY;
                 });
 
                 this.btnToggle.addEventListener('click', () => this.toggleRevalidate());
@@ -319,6 +332,34 @@
 
                 this.updateUI();
                 this.gameLoop();
+            }
+
+            createDriverElement(d, index) {
+                const el = document.createElement('div');
+                el.id = `player-${index}`;
+                el.className = 'driver-car';
+                el.style.position = 'absolute';
+                el.style.width = '48px';
+                el.style.height = '48px';
+                el.style.borderRadius = '50%';
+                el.style.display = 'flex';
+                el.style.alignItems = 'center';
+                el.style.justifyContent = 'center';
+                el.style.zIndex = '100';
+                el.style.cursor = 'grab';
+                el.style.background = d.color;
+                el.style.boxShadow = `0 0 20px ${d.color}66`;
+                el.innerHTML = `<span style="font-size: 24px">🚗</span><div style="position:absolute; bottom:-20px; font-size:10px; font-weight:800; background:rgba(0,0,0,0.5); padding:2px 6px; border-radius:4px; white-space:nowrap">${d.id}</div>`;
+                
+                el.addEventListener('mousedown', (e) => {
+                    this.activeIndex = index;
+                    this.isDragging = true;
+                    this.updateUI();
+                    e.stopPropagation();
+                });
+
+                this.viewport.appendChild(el);
+                d.el = el;
             }
 
             getCity(x) { return x < 50 ? "Paris" : "London"; }
